@@ -6,42 +6,41 @@ import (
 	"log"
 	"os/exec"
 	"strconv"
-	"strings"
 	"time"
 )
 
-var (
-	title = flag.String("title", "Take a break", "Notification title")
-	body  = flag.String("body", "40 minutes passed since your last.", "Notification body")
-	sound = flag.String("sound", "Blow", "Sound name (from ~/Library/Sounds or /System/Library/Sounds)")
-)
-
 const (
-	minBreakLength = 15 * time.Second
-	breakAlert     = 10 * time.Second
-	notifyEvery    = 5 * time.Second
-	isIdleAfter    = 2 * time.Second
+	title      = "Take a break"
+	body       = "40 minutes passed since your last."
+	titleBreak = "You took a break"
+	bodyBreak  = "Good!"
+	timeUnit   = time.Second
 )
 
-func init() {
-	flag.Parse()
-}
+var (
+	sound       = flag.String("sound", "Hero", "sound name (from ~/Library/Sounds or /System/Library/Sounds)")
+	soundAfter  = flag.String("sound-after", "Purr", "sound name after break (from ~/Library/Sounds or /System/Library/Sounds)")
+	breakLength = flag.Int64("min-break", 5, "break length (minutes)")
+	breakAlert  = flag.Int64("break", 10, "break alert interval (minutes)")
+	notifyEvery = flag.Int64("freq", 5, "notification frequency (minutes)")
+	idleAfter   = flag.Int64("idle-after", 2, "time after which user is considered idle (minutes)")
+)
 
-func idleDuration() time.Duration {
+var idleDuration = func() time.Duration {
 	out, err := exec.Command("./idle_time.sh").Output()
 	if err != nil {
 		log.Printf("%+v", err)
 	}
-	s := strings.TrimRight(string(out), "\n")
-	sec, err := strconv.ParseInt(s, 10, 64)
+	sec, err := strconv.ParseInt(string(out), 10, 64)
 	if err != nil {
 		log.Printf("%+v", err)
 	}
 	return time.Duration(sec) * time.Second
 }
 
-func notify() {
-	script := fmt.Sprintf(`display notification "%s" with title "%s" sound name "%s"`, *title, *body, *sound)
+// TODO(gbbr): use https://github.com/0xAX/notificator
+var notify = func() {
+	script := fmt.Sprintf(`display notification "%s" with title "%s" sound name "%s"`, title, body, *sound)
 	cmd := exec.Command("osascript", "-e", script)
 
 	if err := cmd.Run(); err != nil {
@@ -49,32 +48,56 @@ func notify() {
 	}
 }
 
+var notifyBreak = func() {
+	script := fmt.Sprintf(`display notification "%s" with title "%s" sound name "%s"`, titleBreak, bodyBreak, *soundAfter)
+	cmd := exec.Command("osascript", "-e", script)
+
+	if err := cmd.Run(); err != nil {
+		log.Fatal("%+v", err)
+	}
+}
+
+type timeTracker struct {
+	lastBreak time.Time
+	notified  time.Time
+	isIdle    bool
+	inBreak   bool
+}
+
+func newTimeTracker() *timeTracker {
+	return &timeTracker{
+		lastBreak: time.Now(),
+		notified:  time.Now(),
+	}
+}
+
+func (tt *timeTracker) check(t time.Time) {
+	sinceLast := t.Sub(tt.lastBreak)
+	lastNotified := t.Sub(tt.notified)
+	idle := idleDuration()
+
+	inBreak := idle > time.Duration(*breakLength)*timeUnit
+	if inBreak {
+		if !tt.inBreak {
+			notifyBreak()
+		}
+		tt.lastBreak = t
+	}
+	tt.inBreak = inBreak
+	tt.isIdle = idle > time.Duration(*idleAfter)*timeUnit
+	if !tt.isIdle && sinceLast > time.Duration(*breakAlert)*timeUnit &&
+		lastNotified > time.Duration(*notifyEvery)*timeUnit {
+		notify()
+		tt.notified = t
+	}
+}
+
 func main() {
-	lastBreak := time.Now()
-	notified := time.Now()
-	isIdle := false
+	flag.Parse()
+	tracker := newTimeTracker()
 
 	for {
 		time.Sleep(100 * time.Millisecond)
-		sinceLast := time.Now().Sub(lastBreak)
-		idle := idleDuration()
-
-		if !isIdle && sinceLast > breakAlert && time.Now().Sub(notified) > notifyEvery {
-			notify()
-			notified = time.Now()
-		}
-
-		if idle > isIdleAfter {
-			log.Println("idle")
-			isIdle = true
-		} else {
-			isIdle = false
-			log.Println("not idle")
-		}
-
-		if idle > minBreakLength {
-			lastBreak = time.Now()
-			log.Println("break")
-		}
+		tracker.check(time.Now())
 	}
 }
