@@ -14,7 +14,6 @@ func withIdle(d time.Duration) {
 var (
 	origIdleDuration = idleDuration
 	origNotify       = notify
-	origNotifyBreak  = notifyBreak
 	origBreakLength  = *breakLength
 	origBreakAlert   = *breakAlert
 	origNotifyEvery  = *notifyEvery
@@ -24,7 +23,6 @@ var (
 func teardown() {
 	idleDuration = origIdleDuration
 	notify = origNotify
-	notifyBreak = origNotifyBreak
 	*breakLength = origBreakLength
 	*breakAlert = origBreakAlert
 	*notifyEvery = origNotifyEvery
@@ -68,7 +66,7 @@ func TestBreak(t *testing.T) {
 	}
 
 	var notified bool
-	notifyBreak = func() {
+	notify = func(_, _, _ string) {
 		notified = true
 	}
 	withIdle(6 * time.Second)
@@ -78,7 +76,7 @@ func TestBreak(t *testing.T) {
 	}
 
 	notified = false
-	notifyBreak = func() {
+	notify = func(_, _, _ string) {
 		notified = true
 	}
 	withIdle(25 * time.Second)
@@ -93,13 +91,14 @@ func TestNotify(t *testing.T) {
 		defer teardown()
 		tt := newTimeTracker()
 		*idleAfter = 3
-		*breakAlert = 5
+		*breakAlert = 6
+		*notifyEvery = 2
 		withIdle(0)
 		notified := false
-		notify = func() {
+		notify = func(_, _, _ string) {
 			notified = true
 		}
-		m := time.Now().Add(6 * time.Second)
+		m := time.Now().Add(10 * time.Second)
 
 		tt.check(m)
 		if !tt.notified.Equal(m) {
@@ -115,7 +114,7 @@ func TestNotify(t *testing.T) {
 		*notifyEvery = 2
 		withIdle(0)
 		notified := false
-		notify = func() {
+		notify = func(_, _, _ string) {
 			notified = true
 		}
 		m := time.Now().Add(6 * time.Second)
