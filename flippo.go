@@ -14,16 +14,16 @@ const (
 	body       = "40 minutes passed since your last."
 	titleBreak = "You took a break"
 	bodyBreak  = "Good!"
-	timeUnit   = time.Second
+	timeUnit   = time.Minute
 )
 
 var (
 	sound       = flag.String("sound", "Hero", "sound name (from ~/Library/Sounds or /System/Library/Sounds)")
 	soundAfter  = flag.String("sound-after", "Purr", "sound name after break (from ~/Library/Sounds or /System/Library/Sounds)")
-	breakLength = flag.Int64("min-break", 5, "break length (minutes)")
-	breakAlert  = flag.Int64("break", 10, "break alert interval (minutes)")
-	notifyEvery = flag.Int64("freq", 5, "notification frequency (minutes)")
-	idleAfter   = flag.Int64("idle-after", 2, "time after which user is considered idle (minutes)")
+	breakLength = flag.Int64("min-break", 10, "break length (minutes)")
+	breakAlert  = flag.Int64("break", 40, "break alert interval (minutes)")
+	notifyEvery = flag.Int64("freq", 1, "notification frequency (minutes)")
+	idleAfter   = flag.Int64("idle-after", 10, "time after which user is considered idle (seconds)")
 )
 
 var idleDuration = func() time.Duration {
@@ -38,7 +38,6 @@ var idleDuration = func() time.Duration {
 	return time.Duration(sec) * time.Second
 }
 
-// TODO(gbbr): use https://github.com/0xAX/notificator
 var notify = func() {
 	script := fmt.Sprintf(`display notification "%s" with title "%s" sound name "%s"`, title, body, *sound)
 	cmd := exec.Command("osascript", "-e", script)
@@ -84,7 +83,7 @@ func (tt *timeTracker) check(t time.Time) {
 		tt.lastBreak = t
 	}
 	tt.inBreak = inBreak
-	tt.isIdle = idle > time.Duration(*idleAfter)*timeUnit
+	tt.isIdle = idle > time.Duration(*idleAfter)*time.Second
 	if !tt.isIdle && sinceLast > time.Duration(*breakAlert)*timeUnit &&
 		lastNotified > time.Duration(*notifyEvery)*timeUnit {
 		notify()
