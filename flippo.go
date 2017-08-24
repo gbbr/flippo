@@ -27,9 +27,25 @@ var (
 )
 
 var idleDuration = func() time.Duration {
-	out, err := exec.Command("./idle_time.sh").Output()
+	awk := exec.Command("/usr/bin/awk", "/HIDIdleTime/ {printf int($NF/1000000000); exit}")
+	stdin, err := awk.StdinPipe()
 	if err != nil {
-		log.Printf("%+v", err)
+		log.Fatal(err)
+	}
+	ioreg, err := exec.Command("/usr/sbin/ioreg", "-c", "IOHIDSystem").Output()
+	if err != nil {
+		log.Fatal(err)
+	}
+	go func() {
+		defer stdin.Close()
+		_, err := stdin.Write(ioreg)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}()
+	out, err := awk.Output()
+	if err != nil {
+		log.Fatal(err)
 	}
 	sec, err := strconv.ParseInt(string(out), 10, 64)
 	if err != nil {
