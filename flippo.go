@@ -93,17 +93,28 @@ func (tt *timeTracker) check(t time.Time) {
 	secs := func(s *int64) time.Duration {
 		return time.Duration(*s) * time.Second
 	}
-
+	if *debug {
+		log.Printf("Idle: %ds", idle)
+	}
 	inBreak := idle > secs(breakLength)
 	if inBreak {
 		if !tt.inBreak {
 			notify(titleBreak, bodyBreak, *soundBreak)
+			if *debug {
+				log.Println("Completed break.")
+			}
+		}
+		if *debug {
+			log.Println("In break.")
 		}
 		tt.lastBreak = t
 	}
 	tt.inBreak = inBreak
 	tt.isIdle = idle > secs(idleAfter)
 	if !tt.isIdle && sinceLast > secs(breakAlert) && lastNotified > secs(notifyEvery) {
+		if *debug {
+			log.Println("Notified to take break.")
+		}
 		notify(title, body, *sound)
 		tt.notified = t
 	}
@@ -113,7 +124,7 @@ func main() {
 	flag.Parse()
 	tracker := newTimeTracker()
 	for {
-		time.Sleep(100 * time.Second)
+		time.Sleep(time.Second)
 		tracker.check(time.Now())
 	}
 }
