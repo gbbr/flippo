@@ -4,14 +4,17 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os/exec"
 	"strconv"
 	"time"
+
+	_ "net/http/pprof"
 )
 
 const (
 	title      = "Take a break"
-	body       = "40 minutes passed since your last."
+	body       = "52 minutes passed since your last."
 	titleBreak = "You took a break"
 	bodyBreak  = "Good!"
 )
@@ -19,8 +22,8 @@ const (
 var (
 	sound       = flag.String("sound", "Hero", "sound name (from ~/Library/Sounds or /System/Library/Sounds)")
 	soundBreak  = flag.String("sound-after", "Purr", "sound name after break (from ~/Library/Sounds or /System/Library/Sounds)")
-	breakLength = flag.Int64("min-break", 600, "break length (seconds)")
-	breakAlert  = flag.Int64("break", 2400, "break alert interval (seconds)")
+	breakLength = flag.Int64("min-break", 1020, "break length (seconds)")
+	breakAlert  = flag.Int64("break", 3120, "break alert interval (seconds)")
 	notifyEvery = flag.Int64("freq", 60, "notification frequency (seconds)")
 	idleAfter   = flag.Int64("idle-after", 10, "time after which user is considered idle (seconds)")
 	debug       = flag.Bool("debug", false, "verbose display")
@@ -123,6 +126,9 @@ func (tt *timeTracker) check(t time.Time) {
 func main() {
 	flag.Parse()
 	tracker := newTimeTracker()
+	go func() {
+		http.ListenAndServe(":6060", nil)
+	}()
 	for {
 		time.Sleep(time.Second)
 		tracker.check(time.Now())
